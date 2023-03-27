@@ -1,0 +1,68 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <omp.h>
+
+#define N 1000
+#define TOLERANCE 1e-6
+#define MAX_ITERATIONS 10000
+
+int main() {
+    double T[N][N], Tnew[N][N];
+    int i, j, k;
+    double diff, maxdiff;
+
+    // initialize temperature array
+    #pragma omp parallel for private(i,j)
+    for (i = 0; i < N; i++) {
+        for (j = 0; j < N; j++) {
+            if (i == 0 || i == N-1 || j == 0 || j == N-1) {
+                T[i][j] = 100.0; // boundary condition
+            } else {
+                T[i][j] = 0.0;
+            }
+        }
+    }
+
+    // solve for temperature using method of simple iterations
+    for (k = 0; k < MAX_ITERATIONS; k++) {
+        maxdiff = 0.0;
+
+        // update temperature values in parallel
+        #pragma omp parallel for private(i,j,diff) reduction(max:maxdiff)
+        for (i = 1; i < N-1; i++) {
+            for (j = 1; j < N-1; j++) {
+                Tnew[i][j] = 0.25 * (T[i-1][j] + T[i+1][j] + T[i][j-1] + T[i][j+1]); // simple iteration formula
+                diff = fabs(Tnew[i][j] - T[i][j]); // compute difference between old and new value
+                if (diff > maxdiff) {
+                    maxdiff = diff; // update maximum difference
+                }
+            }
+        }
+
+        // check for convergence
+        if (maxdiff < TOLERANCE) {
+            printf("Converged after %d iterations\n", k+1);
+            break;
+        }
+
+        // copy new temperature values to T array
+        #pragma omp parallel for private(i,j)
+        for (i = 1; i < N-1; i++) {
+            for (j = 1; j < N-1; j++) {
+                T[i][j] = Tnew[i][j];
+            }
+        }
+    }
+
+    // output temperature values
+    for (i = 0; i < N; i++) {
+        for (j = 0; j < N; j++) {
+            printf("%f ", T[i][j]);
+            
+    }
+    printf("\n");
+    }
+
+    return 0;
+}
